@@ -796,13 +796,23 @@
   <div class="hero">
     <div class="kicker">Cierre del taller</div>
     <h2>Autoevaluación</h2>
-    <p class="sub">Doce preguntas de repaso sobre las reglas esenciales del despacho. Responde y recibe retroalimentación inmediata.</p>
+    <p class="sub">Doce preguntas de repaso sobre las reglas esenciales del despacho, con retroalimentación inmediata. Al finalizar, tu nombre y calificación se registran automáticamente con el despacho.</p>
   </div>
   <div class="contenido">
-    <div id="quiz"></div>
+    <div class="gen" id="quiz-gate">
+      <h4>Antes de comenzar, escribe tu nombre</h4>
+      <div class="campos">
+        <div><label>Nombre completo</label><input id="quiz-nombre" placeholder="Nombre y apellidos"></div>
+      </div>
+      <div class="expl" style="margin-top:12px">Al terminar el cuestionario, tu nombre y tu calificación se registran automáticamente con el despacho.</div>
+      <button class="tab-btn" style="margin-top:14px;border-color:var(--dorado);color:var(--dorado-suave)" onclick="iniciarQuiz()">Comenzar cuestionario</button>
+      <div class="expl" id="quiz-gate-error" style="color:#f0b9a4;display:none;margin-top:8px">Escribe tu nombre completo para poder comenzar.</div>
+    </div>
+    <div id="quiz" style="display:none"></div>
     <div class="quiz-score" id="quiz-score">
       <div class="num" id="quiz-num">–</div>
       <p id="quiz-msj"></p>
+      <p id="quiz-envio" style="margin-top:10px;font-family:var(--sans);font-size:13px;color:var(--dorado-suave)"></p>
       <button class="tab-btn" style="margin-top:14px;border-color:var(--dorado);color:var(--dorado-suave)" onclick="reiniciarQuiz()">Reintentar</button>
     </div>
     <div class="nota" style="margin-top:30px"><strong>¡Gracias!</strong> Con esto concluye el taller propedéutico. Ante cualquier duda, acude a tu abogado asignado o al Coordinador del despacho.</div>
@@ -986,6 +996,39 @@ const PREGUNTAS = [
   ops:['Outlook','Teamwork','WhatsApp'], ok:1,
   fb:'Teamwork es el centro de operaciones: clientes, proyectos, tareas, tiempos y documentos en un solo lugar.'},
 ];
+/* ---- registro de resultados (Google Forms del despacho) ---- */
+const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSdfOtTtBkATLRTAZ37Un2C3MUYBynPYoTZH1E8CLuO3KmTI8w/formResponse';
+const FORM_CAMPOS = {nombre:'entry.1108133848', calificacion:'entry.1743478948', detalle:'entry.611029486'};
+let quizNombre = '';
+function iniciarQuiz(){
+  const n = document.getElementById('quiz-nombre').value.trim();
+  if(n.split(/\s+/).length < 2){
+    document.getElementById('quiz-gate-error').style.display = 'block';
+    return;
+  }
+  quizNombre = n;
+  document.getElementById('quiz-gate').style.display = 'none';
+  document.getElementById('quiz').style.display = 'block';
+  pintarQuiz();
+}
+function enviarResultado(aciertos){
+  const detalle = PREGUNTAS.map((p,i)=>
+    `${i+1}. ${respuestas[i]===p.ok ? 'Correcta' : 'Incorrecta (eligió: ' + p.ops[respuestas[i]] + ')'}`).join('\n');
+  const datos = new URLSearchParams();
+  datos.append(FORM_CAMPOS.nombre, quizNombre);
+  datos.append(FORM_CAMPOS.calificacion, `${aciertos} / ${PREGUNTAS.length}`);
+  datos.append(FORM_CAMPOS.detalle, detalle);
+  const aviso = document.getElementById('quiz-envio');
+  fetch(FORM_URL, {method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: datos.toString()})
+    .then(()=>{ aviso.textContent = `Resultado de ${quizNombre} registrado con el despacho ✓`; })
+    .catch(()=>{
+      const enlace = FORM_URL.replace('formResponse','viewform') +
+        `?usp=pp_url&${FORM_CAMPOS.nombre}=${encodeURIComponent(quizNombre)}&${FORM_CAMPOS.calificacion}=${encodeURIComponent(aciertos + ' / ' + PREGUNTAS.length)}`;
+      aviso.innerHTML = `No se pudo registrar automáticamente (revisa tu conexión). ` +
+        `<a href="${enlace}" target="_blank" rel="noopener" style="color:var(--dorado)">Toca aquí para registrar tu resultado</a>.`;
+    });
+}
 let respuestas;
 function pintarQuiz(){
   respuestas = new Array(PREGUNTAS.length).fill(null);
@@ -1017,10 +1060,10 @@ function responder(i,j){
       'Vale la pena repasar los módulos correspondientes; el detalle importa en SDA.';
     document.getElementById('quiz-score').classList.add('visible');
     document.getElementById('quiz-score').scrollIntoView({behavior:'smooth'});
+    enviarResultado(n);
   }
 }
 function reiniciarQuiz(){ pintarQuiz(); window.scrollTo({top:0}); }
-pintarQuiz();
 
 irA(0);
 </script>
